@@ -1045,6 +1045,7 @@
       <div class="email-row">
         <input type="email" id="ceEmailResult" placeholder="your@email.com" />
         <button onclick="deliverReport()">Send It →</button>
+          <div id="ceSendConfirm" style="display:none;margin-top:10px;font-size:0.8rem;color:#4ade80;letter-spacing:0.05em;">✓ Report sent — check your inbox within 60 seconds.</div>
       </div>
     </div>
   </section>
@@ -1158,6 +1159,12 @@
     document.getElementById('formSection').classList.remove('active');
     document.getElementById('resultsSection').classList.add('active');
 
+    // Auto-send report immediately when verdict renders
+    setTimeout(() => {
+      const email = document.getElementById('ceEmail')?.value || document.getElementById('ceEmailResult')?.value;
+      if (email) autoSendClarityEngine(email);
+    }, 1500);
+
     // Score logic
     const rebrandSignals = [answers[1]||2, answers[2]||2, answers[3]||2, answers[4]||2, answers[7]||2, answers[8]||2, answers[10]||2, answers[11]||2];
     const preserveSignals = [answers[5]||2, answers[6]||2, answers[9]||2];
@@ -1247,10 +1254,79 @@
     document.getElementById('actionPlan').innerHTML = planHTML;
   }
 
-  function deliverReport() {
+  async function deliverReport() {
     const email = document.getElementById('ceEmailResult').value;
     if (!email) { alert('Please enter your email.'); return; }
-    alert(`✓ Your Clarity Engine report is on its way to ${email}. Arrives within 60 seconds.`);
+    const btn = document.querySelector('.email-row button');
+    if (btn) { btn.textContent = 'Sending...'; btn.disabled = true; }
+    try {
+      const html = buildClarityEngineEmail();
+      const res = await fetch('https://vzzzqsmqqaoilkmskadl.supabase.co/functions/v1/send-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: email, subject: 'Your Clarity Engine Verdict — Brand Decision Report', html })
+      });
+      if (res.ok) {
+        if (btn) { btn.textContent = 'Sent ✓'; btn.style.background = '#0d170d'; }
+        const conf = document.getElementById('ceSendConfirm');
+        if (conf) conf.style.display = 'block';
+      } else { throw new Error('failed'); }
+    } catch(e) {
+      if (btn) { btn.textContent = 'Send It →'; btn.disabled = false; }
+      alert('There was an issue sending your report. Please email cs@cjhadisa.com and we will send it manually within 1 hour.');
+    }
+  }
+
+  function buildClarityEngineEmail() {
+    const company = document.getElementById('ceEmailResult')?.dataset?.company || document.getElementById('ceCompany')?.value || 'Your Business';
+    const verdict = document.getElementById('verdictMain')?.textContent || '—';
+    const verdictSub = document.getElementById('verdictSub')?.textContent || '';
+    const verdictTag = document.getElementById('verdictTag')?.textContent || '';
+    const confBar = document.getElementById('confFill');
+    const confPct = confBar ? confBar.style.width : '0%';
+    let actionsHTML = '';
+    document.querySelectorAll('.action-item').forEach((a,i) => {
+      const txt = a.textContent?.trim() || '';
+      actionsHTML += `<tr><td style="padding:12px 16px;border-bottom:1px solid #1e2b1e;vertical-align:top;width:32px;"><span style="font-size:11px;color:#4ade80;font-weight:700;font-family:monospace;">0${i+1}</span></td><td style="padding:12px 16px;border-bottom:1px solid #1e2b1e;font-size:13px;color:#d0f0d0;line-height:1.6;">${txt}</td></tr>`;
+    });
+    const verdictColor = verdict.includes('Full Rebrand') ? '#f87171' : verdict.includes('Brand Refresh') ? '#4ade80' : '#fbbf24';
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#0d170d;font-family:Arial,sans-serif;">
+<div style="max-width:600px;margin:0 auto;background:#111711;">
+<div style="background:#0a0f0a;padding:32px 40px;text-align:center;border-bottom:1px solid #1e2b1e;">
+  <div style="font-size:24px;font-weight:900;color:#f0f7f0;letter-spacing:-0.03em;">Clarity<span style="color:#4ade80;">Engine</span></div>
+  <div style="font-size:10px;letter-spacing:0.25em;color:rgba(240,247,240,0.3);text-transform:uppercase;margin-top:6px;">AI Brand Decision Tool · C.H.A. LLC</div>
+</div>
+<div style="padding:40px;text-align:center;border-bottom:1px solid #1e2b1e;">
+  <div style="font-size:10px;letter-spacing:0.2em;color:#4ade80;text-transform:uppercase;margin-bottom:12px;">${verdictTag}</div>
+  <div style="font-size:60px;font-weight:900;color:${verdictColor};line-height:1;font-family:Georgia,serif;">${verdict}</div>
+  <div style="font-size:14px;color:rgba(240,247,240,0.6);margin-top:12px;">${verdictSub}</div>
+  <div style="margin-top:20px;display:inline-block;">
+    <div style="font-size:10px;letter-spacing:0.15em;color:rgba(240,247,240,0.4);text-transform:uppercase;margin-bottom:8px;">Confidence Score</div>
+    <div style="background:#1e2b1e;height:6px;width:240px;border-radius:3px;margin:0 auto;"><div style="background:#4ade80;height:6px;border-radius:3px;width:${confPct};"></div></div>
+    <div style="font-size:13px;color:#4ade80;margin-top:6px;font-weight:700;">${confPct}</div>
+  </div>
+</div>
+<div style="padding:32px 40px;">
+  <h2 style="font-size:14px;color:#4ade80;margin:0 0 16px;letter-spacing:0.15em;text-transform:uppercase;">Your Next Steps</h2>
+  <table style="width:100%;border-collapse:collapse;border:1px solid #1e2b1e;">${actionsHTML || '<tr><td colspan="2" style="padding:16px;color:rgba(240,247,240,0.4);font-size:13px;">Check your results page for full action plan details.</td></tr>'}</table>
+</div>
+<div style="background:#0a0f0a;padding:24px 40px;text-align:center;border-top:1px solid #1e2b1e;">
+  <p style="margin:0;font-size:11px;color:rgba(240,247,240,0.2);letter-spacing:0.08em;">CLARITY ENGINE · GETCLARITYENGINE.VERCEL.APP · C.H.A. LLC</p>
+  <p style="margin:8px 0 0;font-size:11px;color:rgba(240,247,240,0.15);">Questions? cs@cjhadisa.com</p>
+</div>
+</div></body></html>`;
+  }
+
+  async function autoSendClarityEngine(email) {
+    if (!email) return;
+    try {
+      const html = buildClarityEngineEmail();
+      await fetch('https://vzzzqsmqqaoilkmskadl.supabase.co/functions/v1/send-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: email, subject: 'Your Clarity Engine Verdict — Brand Decision Report', html })
+      });
+    } catch(e) { console.error('Auto-send failed:', e); }
   }
 </script>
 </body>
