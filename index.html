@@ -1021,6 +1021,7 @@
 
   <!-- RESULTS -->
   <section class="results-section" id="resultsSection">
+    <div id="ceEmailConfirm" style="display:none;padding:12px 20px;margin-bottom:20px;font-size:0.78rem;letter-spacing:0.08em;font-family:'IBM Plex Mono',monospace;background:#111711;border:1px solid #1e2b1e;"></div>
     <div class="verdict-card">
       <div class="verdict-tag" id="verdictTag">Analysis Complete</div>
       <div class="verdict-main" id="verdictMain">—</div>
@@ -1066,6 +1067,49 @@
   let curQ = 1;
   const totalQ = 12;
   const answers = {};
+
+  // ── ON PAGE LOAD: Restore session after Stripe redirect ──
+  window.addEventListener('DOMContentLoaded', async () => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('paid') === 'true') {
+      const token = params.get('session');
+      window.history.replaceState({}, '', window.location.pathname);
+      if (token) {
+        try {
+          const res = await fetch(
+            'https://vzzzqsmqqaoilkmskadl.supabase.co/rest/v1/clarityengine_sessions?session_token=eq.' + encodeURIComponent(token) + '&select=email,company_name,scores',
+            { headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6enpxc21xcWFvaWxrbXNrYWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5MjAzMTksImV4cCI6MjA5MTQ5NjMxOX0.GJpnEXnyQM_-_GJAuaLjXqsRJeXFo6j7p3MupgPEBLQ' } }
+          );
+          const rows = await res.json();
+          if (rows && rows.length > 0) {
+            const row = rows[0];
+            if (row.scores) Object.assign(answers, row.scores);
+            if (row.email) {
+              document.getElementById('ceEmail') && (document.getElementById('ceEmail').value = row.email);
+              document.getElementById('ceEmailResult') && (document.getElementById('ceEmailResult').value = row.email);
+            }
+            if (row.company_name) document.getElementById('ceCompany') && (document.getElementById('ceCompany').value = row.company_name);
+            await fetch('https://vzzzqsmqqaoilkmskadl.supabase.co/rest/v1/clarityengine_sessions?session_token=eq.' + encodeURIComponent(token),
+              { method: 'PATCH', headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6enpxc21xcWFvaWxrbXNrYWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5MjAzMTksImV4cCI6MjA5MTQ5NjMxOX0.GJpnEXnyQM_-_GJAuaLjXqsRJeXFo6j7p3MupgPEBLQ', 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, body: JSON.stringify({ paid: true }) }
+            );
+            runClarityLoading();
+          }
+        } catch(e) { console.error('Session restore failed:', e); }
+      }
+    }
+  });
+
+  function runClarityLoading() {
+    document.getElementById('formSection').classList.remove('active');
+    document.getElementById('loadScreen').classList.add('active');
+    const msgs = ['Analyzing brand performance signals...','Evaluating market position factors...','Assessing rebranding risk profile...','Calculating competitive differentiation...','Weighing strategic trigger severity...','Cross-referencing industry benchmarks...','Computing verdict confidence score...','Generating action plan...'];
+    let i = 0;
+    const iv = setInterval(() => {
+      document.getElementById('loadStatus').textContent = msgs[i % msgs.length];
+      i++;
+      if (i >= msgs.length) { clearInterval(iv); setTimeout(showVerdict, 600); }
+    }, 650);
+  }
 
   function startEngine() {
     document.getElementById('heroSection').style.display = 'none';
@@ -1130,28 +1174,22 @@
     updateProg();
   }
 
-  function processPayment() {
-    window.open('https://buy.stripe.com/eVq4gz51TauH7YT1ei6sw01?utm_source=clarityengine&utm_medium=web&utm_campaign=brand_decision&utm_content=pay_button', '_blank');
-    document.getElementById('loadScreen').classList.add('active');
-    const msgs = [
-      'Analyzing brand performance signals...',
-      'Evaluating market position factors...',
-      'Assessing rebranding risk profile...',
-      'Calculating competitive differentiation...',
-      'Weighing strategic trigger severity...',
-      'Cross-referencing industry benchmarks...',
-      'Computing verdict confidence score...',
-      'Generating action plan...'
-    ];
-    let i = 0;
-    const iv = setInterval(() => {
-      document.getElementById('loadStatus').textContent = msgs[i % msgs.length];
-      i++;
-      if (i >= msgs.length) {
-        clearInterval(iv);
-        setTimeout(showVerdict, 600);
-      }
-    }, 650);
+  async function processPayment() {
+    const email = document.getElementById('ceEmail').value;
+    const company = document.getElementById('ceCompany').value;
+    if (!email || !company) { alert('Please enter your company name and email.'); return; }
+
+    const token = crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).substr(2));
+
+    try {
+      await fetch('https://vzzzqsmqqaoilkmskadl.supabase.co/rest/v1/clarityengine_sessions', {
+        method: 'POST',
+        headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6enpxc21xcWFvaWxrbXNrYWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5MjAzMTksImV4cCI6MjA5MTQ5NjMxOX0.GJpnEXnyQM_-_GJAuaLjXqsRJeXFo6j7p3MupgPEBLQ', 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ session_token: token, email, company_name: company, scores: answers })
+      });
+    } catch(e) { console.error('Session save failed:', e); }
+
+    window.location.href = 'https://buy.stripe.com/eVq4gz51TauH7YT1ei6sw01?utm_source=clarityengine&utm_medium=web&utm_campaign=brand_decision&utm_content=pay_button&client_reference_id=' + encodeURIComponent(token);
   }
 
   function showVerdict() {
@@ -1159,11 +1197,23 @@
     document.getElementById('formSection').classList.remove('active');
     document.getElementById('resultsSection').classList.add('active');
 
-    // Auto-send report immediately when verdict renders
-    setTimeout(() => {
-      const email = document.getElementById('ceEmail')?.value || document.getElementById('ceEmailResult')?.value;
-      if (email) autoSendClarityEngine(email);
-    }, 1500);
+    // Auto-send fires 3500ms AFTER verdict renders — DOM fully painted
+    setTimeout(async () => {
+      const email = document.getElementById('ceEmailResult')?.value || document.getElementById('ceEmail')?.value;
+      if (!email) return;
+      const html = buildClarityEngineEmail();
+      const res = await fetch('https://vzzzqsmqqaoilkmskadl.supabase.co/functions/v1/send-report', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: email, subject: 'Your Clarity Engine Verdict — Brand Decision Report', html })
+      });
+      const data = await res.json();
+      const confirmEl = document.getElementById('ceEmailConfirm');
+      if (confirmEl) {
+        confirmEl.textContent = data.success ? '✓ Report sent to ' + email + ' — check your inbox.' : '⚠ Email delivery failed. Use the Send button below.';
+        confirmEl.style.color = data.success ? '#4ade80' : '#f87171';
+        confirmEl.style.display = 'block';
+      }
+    }, 3500);
 
     // Score logic
     const rebrandSignals = [answers[1]||2, answers[2]||2, answers[3]||2, answers[4]||2, answers[7]||2, answers[8]||2, answers[10]||2, answers[11]||2];
@@ -1317,17 +1367,7 @@
 </div></body></html>`;
   }
 
-  async function autoSendClarityEngine(email) {
-    if (!email) return;
-    try {
-      const html = buildClarityEngineEmail();
-      await fetch('https://vzzzqsmqqaoilkmskadl.supabase.co/functions/v1/send-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: email, subject: 'Your Clarity Engine Verdict — Brand Decision Report', html })
-      });
-    } catch(e) { console.error('Auto-send failed:', e); }
-  }
+
 </script>
 </body>
 </html>
