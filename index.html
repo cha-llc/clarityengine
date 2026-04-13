@@ -795,7 +795,19 @@
   .q-block { display: none; }
   .q-block.active { display: block; animation: fadeIn 0.3s ease; }
 </style>
-<script type="text/javascript">function googleTranslateElementInit(){new google.translate.TranslateElement({pageLanguage:"en",includedLanguages:"",layout:google.translate.TranslateElement.InlineLayout.SIMPLE,autoDisplay:false},"google_translate_element")}</script><script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script></head>
+<script type="text/javascript">function googleTranslateElementInit(){new google.translate.TranslateElement({pageLanguage:"en",includedLanguages:"",layout:google.translate.TranslateElement.InlineLayout.SIMPLE,autoDisplay:false},"google_translate_element")}
+  // ── INTERNAL ERROR REPORTING — sends to #technical-alerts + cs@cjhadisa.com ──
+  async function reportInternalError(product, stage, errorMsg, customerEmail) {
+    try {
+      await fetch('https://vzzzqsmqqaoilkmskadl.supabase.co/functions/v1/internal-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6enpxc21xcWFvaWxrbXNrYWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjYzMjQsImV4cCI6MjA5MTQ0MjMyNH0.vYkiz5BeoJlhNzcEiiGQfsHLE5UfqJbTTBjNXk1xxJs' },
+        body: JSON.stringify({ type: 'error', product, stage, error: errorMsg, customerEmail: customerEmail || '' })
+      });
+    } catch(e) { console.error('Alert failed silently:', e); }
+  }
+
+</script><script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script></head>
 <body><div id="lang_bar" style="position:fixed;top:0;left:0;right:0;z-index:9999;background:rgba(13,13,13,0.96);backdrop-filter:blur(10px);padding:7px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,0.08);"><span style="font-size:0.62rem;letter-spacing:0.18em;color:#888;text-transform:uppercase;white-space:nowrap;font-family:monospace;">🌐 TRANSLATE</span><div id="google_translate_element"></div></div><div style="height:40px"></div>
 
 <div class="container">
@@ -1080,7 +1092,7 @@
         { headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6enpxc21xcWFvaWxrbXNrYWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjYzMjQsImV4cCI6MjA5MTQ0MjMyNH0.vYkiz5BeoJlhNzcEiiGQfsHLE5UfqJbTTBjNXk1xxJs' } }
       );
       const rows = await res.json();
-      if (!rows || rows.length === 0) { console.error('No pending ClarityEngine session found'); return; }
+      if (!rows || rows.length === 0) { console.error('No pending ClarityEngine session found'); reportInternalError('ClarityEngine', 'session_restore', 'No unpaid session found on paid=true return', ''); return; }
       const row = rows[0];
       if (row.scores) Object.assign(answers, row.scores);
       const email = row.email || '';
@@ -1094,7 +1106,7 @@
         { method: 'PATCH', headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6enpxc21xcWFvaWxrbXNrYWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjYzMjQsImV4cCI6MjA5MTQ0MjMyNH0.vYkiz5BeoJlhNzcEiiGQfsHLE5UfqJbTTBjNXk1xxJs', 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, body: JSON.stringify({ paid: true }) }
       );
       runClarityLoading();
-    } catch(e) { console.error('ClarityEngine session restore failed:', e); }
+    } catch(e) { console.error('ClarityEngine session restore failed:', e); reportInternalError('ClarityEngine', 'session_restore', e.message, ''); }
   });
 
   function runClarityLoading() {
@@ -1207,7 +1219,9 @@
       const data = await res.json();
       const confirmEl = document.getElementById('ceEmailConfirm');
       if (confirmEl) {
-        confirmEl.textContent = data.success ? '✓ Report sent to ' + email + ' — check your inbox.' : '⚠ Email delivery failed. Use the Send button below.';
+        const emailOk = data.success;
+      confirmEl.textContent = emailOk ? '✓ Report sent to ' + email + ' — check your inbox.' : '⚠ Email delivery failed. Use the Send button below.';
+      if (!emailOk) reportInternalError('ClarityEngine', 'email_auto_send', 'Auto-send returned failure', email);
         confirmEl.style.color = data.success ? '#4ade80' : '#f87171';
         confirmEl.style.display = 'block';
       }
