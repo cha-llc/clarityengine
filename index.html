@@ -796,7 +796,7 @@
   .q-block.active { display: block; animation: fadeIn 0.3s ease; }
 </style>
 <script type="text/javascript">function googleTranslateElementInit(){new google.translate.TranslateElement({pageLanguage:"en",includedLanguages:"",layout:google.translate.TranslateElement.InlineLayout.SIMPLE,autoDisplay:false},"google_translate_element")}
-  // ── INTERNAL ERROR REPORTING — sends to #technical-alerts + cs@cjhadisa.com ──
+  // ── INTERNAL ERROR REPORTING — sends to #technical-alerts + appdevv2026@gmail.com ──
   async function reportInternalError(product, stage, errorMsg, customerEmail) {
     try {
       await fetch('https://vzzzqsmqqaoilkmskadl.supabase.co/functions/v1/internal-alert', {
@@ -805,6 +805,17 @@
         body: JSON.stringify({ type: 'error', product, stage, error: errorMsg, customerEmail: customerEmail || '' })
       });
     } catch(e) { console.error('Alert failed silently:', e); }
+  }
+
+  // ── NEW PAID CUSTOMER NOTIFICATION — posts to Slack #newsletter ──
+  async function notifyNewCustomer(product, customerEmail) {
+    try {
+      await fetch('https://vzzzqsmqqaoilkmskadl.supabase.co/functions/v1/internal-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6enpxc21xcWFvaWxrbXNrYWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjYzMjQsImV4cCI6MjA5MTQ0MjMyNH0.vYkiz5BeoJlhNzcEiiGQfsHLE5UfqJbTTBjNXk1xxJs' },
+        body: JSON.stringify({ type: 'newsletter', product, message: 'New paid customer — $37 purchase', customerEmail: customerEmail || '' })
+      });
+    } catch(e) { console.error('Newsletter notify failed silently:', e); }
   }
 
 </script><script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script></head>
@@ -1132,6 +1143,8 @@
       await fetch('https://vzzzqsmqqaoilkmskadl.supabase.co/rest/v1/clarityengine_sessions?session_token=eq.' + encodeURIComponent(row.session_token),
         { method: 'PATCH', headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6enpxc21xcWFvaWxrbXNrYWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjYzMjQsImV4cCI6MjA5MTQ0MjMyNH0.vYkiz5BeoJlhNzcEiiGQfsHLE5UfqJbTTBjNXk1xxJs', 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, body: JSON.stringify({ paid: true }) }
       );
+      // Notify #newsletter of new paid customer
+      notifyNewCustomer('ClarityEngine', email);
       runClarityLoading();
     } catch(e) { console.error('ClarityEngine session restore failed:', e); reportInternalError('ClarityEngine', 'session_restore', e.message, ''); }
   });
@@ -1224,7 +1237,7 @@
         headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6enpxc21xcWFvaWxrbXNrYWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjYzMjQsImV4cCI6MjA5MTQ0MjMyNH0.vYkiz5BeoJlhNzcEiiGQfsHLE5UfqJbTTBjNXk1xxJs', 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
         body: JSON.stringify({ session_token: token, email, company_name: company, scores: answers })
       });
-    } catch(e) { console.error('Session save failed:', e); }
+    } catch(e) { console.error('Session save failed:', e); reportInternalError('ClarityEngine', 'session_save', e.message, email); }
 
     // Save token before Stripe redirect — survives cross-domain navigation
     try { localStorage.setItem('ce_pending_token', token); localStorage.setItem('ce_pending_ts', Date.now().toString()); } catch(e) {}
@@ -1365,6 +1378,7 @@
       } else { throw new Error('failed'); }
     } catch(e) {
       if (btn) { btn.textContent = 'Send It →'; btn.disabled = false; }
+      reportInternalError('ClarityEngine', 'email_manual_send', e.message, email);
       alert('There was an issue sending your report. Please email cs@cjhadisa.com and we will send it manually within 1 hour.');
     }
   }
@@ -1377,9 +1391,10 @@
     const confBar = document.getElementById('confFill');
     const confPct = confBar ? confBar.style.width : '0%';
     let actionsHTML = '';
-    document.querySelectorAll('.action-item').forEach((a,i) => {
-      const txt = a.textContent?.trim() || '';
-      actionsHTML += `<tr><td style="padding:12px 16px;border-bottom:1px solid #1e2b1e;vertical-align:top;width:32px;"><span style="font-size:11px;color:#4ade80;font-weight:700;font-family:monospace;">0${i+1}</span></td><td style="padding:12px 16px;border-bottom:1px solid #1e2b1e;font-size:13px;color:#d0f0d0;line-height:1.6;">${txt}</td></tr>`;
+    document.querySelectorAll('#actionPlan .step').forEach((step, i) => {
+      const heading = step.querySelector('h4')?.textContent?.trim() || '';
+      const body    = step.querySelector('p')?.textContent?.trim()  || '';
+      actionsHTML += `<tr><td style="padding:12px 16px;border-bottom:1px solid #1e2b1e;vertical-align:top;width:32px;"><span style="font-size:11px;color:#4ade80;font-weight:700;font-family:monospace;">0${i+1}</span></td><td style="padding:12px 16px;border-bottom:1px solid #1e2b1e;font-size:13px;color:#d0f0d0;line-height:1.6;"><strong style="color:#f0f7f0;">${heading}</strong><br><span style="color:#9ab89a;">${body}</span></td></tr>`;
     });
     const verdictColor = verdict.includes('Full Rebrand') ? '#f87171' : verdict.includes('Brand Refresh') ? '#4ade80' : '#fbbf24';
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#0d170d;font-family:Arial,sans-serif;">
